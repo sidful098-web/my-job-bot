@@ -44,7 +44,7 @@ if st.button("🚀 Start Automated Outreach"):
 
             # STEP A: Tailor CV using AI
             try:
-                model = genai.GenerativeModel('gemini-pro')
+               model = genai.GenerativeModel('gemini-1.5-flash')
                 prompt = f"Rewrite my professional summary and key skills for this job description. Keep it concise. Job: {job_desc}"
                 ai_response = model.generate_content(prompt).text
                 
