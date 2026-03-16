@@ -6,7 +6,7 @@ import smtplib
 from email.message import EmailMessage
 import io
 
-# --- APP CONFIGuration ---
+# --- APP CONFIGURATION ---
 st.set_page_config(page_title="AI Job Hunter Pro", layout="wide")
 st.title("🤖 AI Automated Job Hunter")
 
@@ -33,48 +33,54 @@ if st.button("🚀 Start Automated Outreach"):
     if not master_cv_file or not job_data or not gemini_key or not email_user or not email_pass:
         st.error("❌ Error: Please fill in all settings and upload both files!")
     else:
-        df = pd.read_excel(job_data) if job_data.name.endswith('xlsx') else pd.read_csv(job_data)
-        
-        for index, row in df.iterrows():
-            hr_name = str(row.get('HR Name', 'Hiring Manager'))
-            hr_email = str(row.get('Email', ''))
-            job_desc = str(row.get('Job Description', ''))
+        try:
+            df = pd.read_excel(job_data) if job_data.name.endswith('xlsx') else pd.read_csv(job_data)
             
-            st.info(f"Processing application for {hr_name}...")
-
-            # STEP A: Tailor CV using AI
-            try:
-               model = genai.GenerativeModel('gemini-1.5-flash')
-                prompt = f"Rewrite my professional summary and key skills for this job description. Keep it concise. Job: {job_desc}"
-                ai_response = model.generate_content(prompt).text
+            for index, row in df.iterrows():
+                # Extract data from Excel columns
+                hr_name = str(row.get('HR Name', 'Hiring Manager'))
+                hr_email = str(row.get('Email', ''))
+                job_desc = str(row.get('Job Description', 'Not provided'))
                 
-                # STEP B: Prepare the Word Document
-                doc = Document(master_cv_file)
-                doc.add_heading('AI Optimized Skills for this Role', level=1)
-                doc.add_paragraph(ai_response)
-                
-                # Save to memory instead of a file
-                cv_buffer = io.BytesIO()
-                doc.save(cv_buffer)
-                cv_buffer.seek(0)
+                st.info(f"Processing application for {hr_name}...")
 
-                # STEP C: Send Email
-                if "@" in hr_email:
-                    msg = EmailMessage()
-                    msg['Subject'] = f"Application for Role - Attn: {hr_name}"
-                    msg['From'] = email_user
-                    msg['To'] = hr_email
-                    msg.set_content(f"Hi {hr_name},\n\nI am interested in this role. Please see my tailored CV attached.\n\nBest regards.")
+                # STEP A: Tailor CV using AI (Using the updated 1.5-flash model)
+                try:
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    prompt = f"Rewrite my professional summary and key skills for this job description. Keep it professional. Job: {job_desc}"
+                    ai_response = model.generate_content(prompt).text
                     
-                    msg.add_attachment(cv_buffer.read(), maintype='application', 
-                                       subtype='vnd.openxmlformats-officedocument.wordprocessingml.document', 
-                                       filename=f"Tailored_CV_{hr_name}.docx")
+                    # STEP B: Prepare the Word Document
+                    doc = Document(master_cv_file)
+                    doc.add_heading('AI Optimized Skills for this Role', level=1)
+                    doc.add_paragraph(ai_response)
                     
-                    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                        smtp.login(email_user, email_pass)
-                        smtp.send_message(msg)
-                    st.success(f"✅ Application sent successfully to {hr_email}")
-                else:
-                    st.warning(f"⚠️ Skipped {hr_name}: No valid email found.")
-            except Exception as e:
-                st.error(f"Failed processing {hr_name}: {str(e)}")
+                    cv_buffer = io.BytesIO()
+                    doc.save(cv_buffer)
+                    cv_buffer.seek(0)
+
+                    # STEP C: Send Email
+                    if "@" in hr_email:
+                        msg = EmailMessage()
+                        msg['Subject'] = f"Application for Role - Attn: {hr_name}"
+                        msg['From'] = email_user
+                        msg['To'] = hr_email
+                        msg.set_content(f"Hi {hr_name},\n\nI am interested in this role. Please see my tailored CV attached.\n\nBest regards.")
+                        
+                        msg.add_attachment(
+                            cv_buffer.read(), 
+                            maintype='application', 
+                            subtype='vnd.openxmlformats-officedocument.wordprocessingml.document', 
+                            filename=f"Tailored_CV_{hr_name}.docx"
+                        )
+                        
+                        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                            smtp.login(email_user, email_pass)
+                            smtp.send_message(msg)
+                        st.success(f"✅ Application sent successfully to {hr_email}")
+                    else:
+                        st.warning(f"⚠️ Skipped {hr_name}: No valid email found in Excel.")
+                except Exception as e:
+                    st.error(f"❌ Error with {hr_name}: {str(e)}")
+        except Exception as main_e:
+            st.error(f"❌ Critical Error reading Excel: {str(main_e)}")
